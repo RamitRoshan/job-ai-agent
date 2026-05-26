@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bookmark, History, LogIn, LogOut, Trash2, Search, Briefcase, MapPin, Sparkles } from 'lucide-react';
+import { Bookmark, History, LogIn, LogOut, Trash2, Search, Briefcase, MapPin, Sparkles, X } from 'lucide-react';
 
 export default function Sidebar({ 
   user, 
@@ -11,7 +11,9 @@ export default function Sidebar({
   onDeleteHistory, 
   onUnsaveJob,
   activeTab,
-  setActiveTab
+  setActiveTab,
+  sidebarOpen,
+  setSidebarOpen
 }) {
   // Helper to extract initials for user avatar
   const getInitials = (name) => {
@@ -25,20 +27,40 @@ export default function Sidebar({
   };
 
   return (
-    <aside className="w-80 h-full glass-panel border-r border-white/5 flex flex-col flex-shrink-0 z-10">
-      {/* Brand Header */}
-      <div className="p-6 border-b border-white/5 flex items-center gap-3.5 group cursor-default">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 via-indigo-500 to-indigo-400 flex items-center justify-center shadow-lg shadow-brand-500/15 border border-white/10 group-hover:scale-105 transition-all duration-300">
-          <Briefcase className="w-5 h-5 text-white animate-float" />
-        </div>
-        <div>
-          <div className="flex items-center gap-1.5">
-            <h2 className="text-base font-bold text-white tracking-tight leading-none">AeroJob AI</h2>
-            <span className="px-1.5 py-0.5 rounded-full text-[8px] bg-brand-500/10 text-brand-300 border border-brand-500/20 font-medium">Beta</span>
+    <>
+      {/* Backdrop overlay for mobile */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-20 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+      <aside className={`fixed inset-y-0 left-0 w-80 h-full glass-panel border-r border-white/5 flex flex-col flex-shrink-0 z-30 transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${
+        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}>
+        {/* Brand Header */}
+        <div className="p-6 border-b border-white/5 flex items-center justify-between group cursor-default">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 via-indigo-500 to-indigo-400 flex items-center justify-center shadow-lg shadow-brand-500/15 border border-white/10 group-hover:scale-105 transition-all duration-300">
+              <Briefcase className="w-5 h-5 text-white animate-float" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <h2 className="text-base font-bold text-white tracking-tight leading-none">AeroJob AI</h2>
+                <span className="px-1.5 py-0.5 rounded-full text-[8px] bg-brand-500/10 text-brand-300 border border-brand-500/20 font-medium">Beta</span>
+              </div>
+              <span className="text-[10px] text-brand-400/80 font-semibold tracking-wider uppercase block mt-1">Intelligent Agent</span>
+            </div>
           </div>
-          <span className="text-[10px] text-brand-400/80 font-semibold tracking-wider uppercase block mt-1">Intelligent Agent</span>
+          {/* Close button for mobile */}
+          <button 
+            onClick={() => setSidebarOpen(false)}
+            className="p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-slate-400 md:hidden flex items-center justify-center transition-all duration-200 hover:scale-105"
+            title="Close Sidebar"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
-      </div>
 
       {/* User Session Controller */}
       <div className="p-5 border-b border-white/5 bg-white/[0.01]">
@@ -209,5 +231,6 @@ export default function Sidebar({
         )}
       </div>
     </aside>
+  </>
   );
 }

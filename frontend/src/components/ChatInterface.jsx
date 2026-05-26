@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, MapPin, Briefcase, BrainCircuit, User, ArrowRight } from 'lucide-react';
+import { Send, Sparkles, MapPin, Briefcase, BrainCircuit, User, ArrowRight, Menu } from 'lucide-react';
 import JobCard from './JobCard';
 
 export default function ChatInterface({ 
@@ -7,7 +7,8 @@ export default function ChatInterface({
   onSendMessage, 
   loading, 
   savedJobs = [], 
-  onSaveToggle 
+  onSaveToggle,
+  onToggleSidebar
 }) {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef(null);
@@ -31,7 +32,25 @@ export default function ChatInterface({
   ];
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-slate-950/20 relative z-0">
+    <div className="flex-1 flex flex-col h-full bg-slate-950/20 relative z-0 min-w-0">
+      {/* Mobile Top Bar */}
+      <header className="flex items-center justify-between px-6 py-4 md:hidden border-b border-white/5 bg-slate-950/50 backdrop-blur-md relative z-10">
+        <button
+          onClick={onToggleSidebar}
+          className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white border border-white/5 transition-all flex items-center justify-center"
+          title="Open Sidebar"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-brand-600 to-indigo-500 flex items-center justify-center border border-white/10">
+            <Briefcase className="w-3.5 h-3.5 text-white" />
+          </div>
+          <span className="text-sm font-bold text-white tracking-tight">AeroJob AI</span>
+        </div>
+        <div className="w-9 h-9" /> {/* Spacer to align */}
+      </header>
+
       {/* Background Decorative Blurs */}
       <div className="absolute top-1/4 left-1/3 w-96 h-96 bg-brand-500/5 rounded-full blur-3xl pointer-events-none -z-10" />
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none -z-10" />

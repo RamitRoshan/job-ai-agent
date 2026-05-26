@@ -9,35 +9,28 @@ export const runJobAgent = async (userQuery, chatHistory = []) => {
 
   // 2. Construct the agent system prompt instructions
   const systemPrompt = `You are a smart Job Search AI Assistant.
-
-Understand user queries and extract job-related information such as role, location, salary, and experience.
-
-Use tools to fetch job listings and return structured results.
-
-Never hallucinate fake jobs. If the tool returns no jobs, you should try searching for similar/broader roles using the tool.
-If still no results are found, suggest similar roles in the "jobs" array using mock suggestions, or keep the list empty but note that they are suggestions.
-
+Extract job details (role, location, salary, experience) and search using tools.
+Never hallucinate fake jobs. If tools return no results, suggest similar roles.
 Your final response MUST be a valid JSON object matching this structure EXACTLY:
 {
-  "role": "extracted job role or empty string if not found",
-  "location": "extracted location or empty string if not found",
+  "role": "extracted job role or empty string",
+  "location": "extracted location or empty string",
   "jobs": [
     {
       "title": "job title",
       "company": "company name",
       "location": "job location",
-      "salary": "salary value (e.g. 10 LPA)",
-      "link": "application URL link"
+      "salary": "salary value",
+      "link": "application URL"
     }
   ]
 }
-
-CRITICAL: Return ONLY raw JSON, with no markdown backticks like \`\`\`json, no explanations, no text before or after the JSON. If the response contains markdown backticks or formatting, it will crash the parser.`;
+Return ONLY raw JSON. No markdown backticks (like \`\`\`json), no extra explanations.`;
 
   // Convert chatHistory to format expected by LangGraph messages state if present.
   // Standard format is role/content array.
   const messages = [];
-  
+
   if (chatHistory && chatHistory.length > 0) {
     chatHistory.forEach(msg => {
       messages.push({
@@ -46,7 +39,7 @@ CRITICAL: Return ONLY raw JSON, with no markdown backticks like \`\`\`json, no e
       });
     });
   }
-  
+
   // Push the latest user query
   messages.push({ role: 'user', content: userQuery });
 
@@ -68,6 +61,8 @@ CRITICAL: Return ONLY raw JSON, with no markdown backticks like \`\`\`json, no e
 
       const result = await agent.invoke({
         messages: messages,
+      }, {
+        recursionLimit: 5
       });
 
       const finalMessage = result.messages[result.messages.length - 1];
@@ -75,6 +70,13 @@ CRITICAL: Return ONLY raw JSON, with no markdown backticks like \`\`\`json, no e
     } catch (error) {
       console.error(`Attempt ${attempts + 1} failed using key rotation:`, error.message);
       lastError = error;
+
+      // Abort immediately for permanent model/configuration errors (e.g. 404, not found)
+      if (error.message.includes("404") || error.message.toLowerCase().includes("not found") || error.message.toLowerCase().includes("model")) {
+        console.error(`❌ Permanent model/route error encountered. Aborting retries.`);
+        throw error;
+      }
+
       attempts++;
       if (attempts < maxAttempts) {
         console.log(`Waiting 1.5s before retrying with next key...`);

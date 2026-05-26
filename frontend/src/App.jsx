@@ -19,6 +19,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('history');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Load user from localstorage on mount
   useEffect(() => {
@@ -219,6 +220,8 @@ export default function App() {
         onUnsaveJob={handleUnsaveJob}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
       />
 
       {/* Main Chat Panel */}
@@ -228,6 +231,7 @@ export default function App() {
         loading={loading}
         savedJobs={savedJobs}
         onSaveToggle={handleSaveToggle}
+        onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
       />
 
       {/* Authentication Modal */}

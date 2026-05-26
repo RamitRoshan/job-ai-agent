@@ -24,7 +24,8 @@ export const getNextGeminiKey = () => {
     throw new Error("No Gemini API keys found in environment variables (GEMINI_KEY_1, GEMINI_KEY_2, etc., or GEMINI_API_KEY).");
   }
   const key = keys[currentIndex % keys.length];
-  console.log(`🔑 Key Rotation: Using Gemini Key ${currentIndex + 1} of ${keys.length}`);
+  const maskedKey = key && key.length > 8 ? `${key.substring(0, 6)}...${key.substring(key.length - 4)}` : '***';
+  console.log(`🔑 Key Rotation: Using Gemini Key ${currentIndex + 1} of ${keys.length} (${maskedKey})`);
   currentIndex = (currentIndex + 1) % keys.length;
   return key;
 };

@@ -167,8 +167,18 @@ export const jobSearchTool = tool(
       });
     }
 
+    // Shape the response: strip out description and tags to save tokens
+    const shapedJobs = jobs.map(job => ({
+      title: job.title,
+      company: job.company,
+      location: job.location,
+      salary: job.salary,
+      experience: job.experience,
+      link: job.link,
+    }));
+
     // Return the results
-    return JSON.stringify(jobs);
+    return JSON.stringify(shapedJobs);
   },
   {
     name: 'job_search_tool',

@@ -1,4 +1,5 @@
 import { monitoringService } from './monitoringService.js';
+import { getPortkeyLLM } from '../config/llm.js';
 
 export class AllKeysExhaustedError extends Error {
   constructor(message) {
@@ -15,7 +16,9 @@ class KeyRotationService {
   }
 
   // Startup Key Health Check
-  initialize() {
+  async initialize() {
+    if (this.isInitialized) return;
+
     const rawKeys = [];
     let i = 1;
     while (true) {
@@ -31,17 +34,59 @@ class KeyRotationService {
 
     if (rawKeys.length === 0) {
       console.error("❌ No Gemini API keys found in environment variables.");
+      this.isInitialized = true;
+      return;
     }
 
-    this.keys = rawKeys.map(key => ({
-      key,
-      isHealthy: true,
-      disabledUntil: null,
-      consecutiveFailures: 0
-    }));
+    console.log(`\n🔍 Performing Startup Health Check on ${rawKeys.length} Gemini API Keys...`);
+    this.keys = [];
+
+    for (let index = 0; index < rawKeys.length; index++) {
+      const apiKey = rawKeys[index];
+      const maskedKey = apiKey.length > 8 ? `${apiKey.substring(0, 6)}...` : '***';
+      let isHealthy = false;
+      
+      const startTime = Date.now();
+      let isTimeout = false;
+      try {
+        console.log(`\n⏳ [Key ${index + 1}] Starting request for key ${maskedKey}...`);
+        const llm = getPortkeyLLM(apiKey);
+        
+        // AbortController to prevent hanging forever
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => {
+          isTimeout = true;
+          controller.abort();
+        }, 30000); // Increased timeout to 30 seconds
+        
+        await llm.invoke("respond with exactly one word: 'ok'", { signal: controller.signal });
+        clearTimeout(timeoutId);
+        
+        const timeTaken = Date.now() - startTime;
+        isHealthy = true;
+        console.log(`✅ [Key ${index + 1}] Request ended successfully. Time taken: ${timeTaken}ms`);
+      } catch (err) {
+        const timeTaken = Date.now() - startTime;
+        console.log(`❌ [Key ${index + 1}] Request failed. Time taken: ${timeTaken}ms`);
+        console.log(`⚠️ Full Error for Key ${index + 1}:`, err);
+        if (err.response && err.response.data) {
+          console.log(`⚠️ Actual Gemini/Portkey Response Data:`, JSON.stringify(err.response.data, null, 2));
+        }
+      }
+
+      this.keys.push({
+        key: apiKey,
+        // If it was just a local timeout, let's keep it healthy so we don't accidentally kill a perfectly good key due to a local network blip
+        isHealthy: isHealthy || isTimeout,
+        // Disable for 1 hour only if it's a confirmed hard failure (like 429 quota or 401 unauthorized), not a timeout
+        disabledUntil: (isHealthy || isTimeout) ? null : Date.now() + (60 * 60 * 1000),
+        consecutiveFailures: (isHealthy || isTimeout) ? 0 : 1
+      });
+    }
 
     this.isInitialized = true;
-    console.log(`✅ KeyRotationService initialized with ${this.keys.length} keys.`);
+    const healthyCount = this.keys.filter(k => k.isHealthy).length;
+    console.log(`✅ Startup Check Complete. ${healthyCount}/${this.keys.length} keys are ready for rotation.\n`);
   }
 
   _refreshKeyStatus() {
@@ -56,8 +101,8 @@ class KeyRotationService {
     }
   }
 
-  getNextKey() {
-    if (!this.isInitialized) this.initialize();
+  async getNextKey() {
+    if (!this.isInitialized) await this.initialize();
     
     this._refreshKeyStatus();
 

@@ -3,10 +3,10 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import connectDB from './config/db.js';
 import { seedJobs } from './config/seed.js';
+import { keyRotationService } from './services/keyRotationService.js';
 import authRoutes from './routes/authRoutes.js';
 import jobRoutes from './routes/jobRoutes.js';
 import agentRoutes from './routes/agentRoutes.js';
-
 
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -31,6 +31,7 @@ app.use(express.urlencoded({ extended: true }));
 const initializeApp = async () => {
   await connectDB();
   await seedJobs();
+  await keyRotationService.initialize();
 };
 initializeApp();
 

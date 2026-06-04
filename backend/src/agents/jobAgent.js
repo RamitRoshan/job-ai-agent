@@ -51,7 +51,7 @@ Return ONLY raw JSON. No markdown backticks (like \`\`\`json), no extra explanat
   while (attempts < maxAttempts) {
     let currentKey = null;
     try {
-      currentKey = keyRotationService.getNextKey();
+      currentKey = await keyRotationService.getNextKey();
       const llm = getPortkeyLLM(currentKey);
 
       const agent = createReactAgent({

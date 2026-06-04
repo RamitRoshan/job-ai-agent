@@ -9,6 +9,7 @@ export const getPortkeyLLM = (geminiApiKey) => {
     modelName: "gemini-2.0-flash",
     temperature: 0.1,
     apiKey: geminiApiKey,
+    maxRetries: 0, // CRITICAL: Disable internal retries so our custom rotation logic handles 429s instantly
     configuration: {
       baseURL: portkeyBaseUrl,
       defaultHeaders: {

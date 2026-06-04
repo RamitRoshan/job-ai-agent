@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import ChatInterface from './components/ChatInterface';
 import AuthModal from './components/AuthModal';
@@ -20,6 +20,7 @@ export default function App() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('history');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const abortControllerRef = useRef(null);
 
   // Load user from localstorage on mount
   useEffect(() => {
@@ -73,6 +74,12 @@ export default function App() {
   };
 
   const handleSendMessage = async (text) => {
+    // Cancel any previous requests
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     // 1. Append user message
     const userMsg = { sender: 'user', text };
     setMessages((prev) => [...prev, userMsg]);
@@ -80,7 +87,7 @@ export default function App() {
 
     try {
       // 2. Query the backend agent
-      const data = await queryAgent(text);
+      const data = await queryAgent(text, abortControllerRef.current.signal);
       
       // 3. Build assistant response
       let responseText = '';
@@ -121,10 +128,14 @@ export default function App() {
         localStorage.setItem('guest_search_history', JSON.stringify(updatedHistory));
       }
     } catch (error) {
+      if (error.name === 'CanceledError' || error.message === 'canceled') {
+        console.log('Request canceled by user.');
+        return;
+      }
       console.error('Search Agent Error:', error);
       const errorMsg = {
         sender: 'bot',
-        text: `Error processing query: ${error.response?.data?.details || error.message || 'Unable to connect to Gemini AI Agent backend. Ensure the backend server is running and GEMINI_API_KEY is configured.'}`
+        text: `Error processing query: ${error.response?.data?.details || error.message || 'Unable to connect to Gemini AI Agent backend.'}`
       };
       setMessages((prev) => [...prev, errorMsg]);
     } finally {

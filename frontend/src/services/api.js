@@ -49,8 +49,8 @@ export const getUserProfile = async () => {
 };
 
 // Agent Search endpoint
-export const queryAgent = async (query) => {
-  const response = await api.post('/api/agent', { query });
+export const queryAgent = async (query, signal) => {
+  const response = await api.post('/api/agent', { query }, { signal });
   return response.data;
 };
 

@@ -1,7 +1,7 @@
 import { createReactAgent } from '@langchain/langgraph/prebuilt';
 import { jobSearchTool } from '../tools/jobSearchTool.js';
 import { getPortkeyLLM } from '../config/llm.js';
-import { getNextGeminiKey } from '../utils/getGeminiKey.js';
+import { keyRotationService, AllKeysExhaustedError } from '../services/keyRotationService.js';
 
 export const runJobAgent = async (userQuery, chatHistory = []) => {
   // 1. Define the tools array
@@ -28,7 +28,6 @@ Your final response MUST be a valid JSON object matching this structure EXACTLY:
 Return ONLY raw JSON. No markdown backticks (like \`\`\`json), no extra explanations.`;
 
   // Convert chatHistory to format expected by LangGraph messages state if present.
-  // Standard format is role/content array.
   const messages = [];
 
   if (chatHistory && chatHistory.length > 0) {
@@ -45,13 +44,15 @@ Return ONLY raw JSON. No markdown backticks (like \`\`\`json), no extra explanat
 
   // 3. Execute the ReAct agent graph with Portkey LLM, rotation and retry mechanism
   let attempts = 0;
-  const maxAttempts = 3;
+  // Increase maxAttempts to try all keys before failing
+  const maxAttempts = 5; 
   let lastError;
 
   while (attempts < maxAttempts) {
+    let currentKey = null;
     try {
-      const apiKey = getNextGeminiKey();
-      const llm = getPortkeyLLM(apiKey);
+      currentKey = keyRotationService.getNextKey();
+      const llm = getPortkeyLLM(currentKey);
 
       const agent = createReactAgent({
         llm,
@@ -68,18 +69,20 @@ Return ONLY raw JSON. No markdown backticks (like \`\`\`json), no extra explanat
       const finalMessage = result.messages[result.messages.length - 1];
       return finalMessage.content;
     } catch (error) {
-      console.error(`Attempt ${attempts + 1} failed using key rotation:`, error.message);
+      console.error(`Attempt ${attempts + 1} failed:`, error.message);
       lastError = error;
 
-      // First check if this is a rate limit / quota error
+      if (error instanceof AllKeysExhaustedError) {
+        throw error;
+      }
+
       const errorMsg = error.message && typeof error.message === 'string' ? error.message.toLowerCase() : String(error.message || "").toLowerCase();
       
-      console.log("🔥 ERROR HANDLING BLOCK REACHED. Error Message:", errorMsg.substring(0, 50) + "...");
-
       const isRateLimit = errorMsg.includes("429") || errorMsg.includes("quota") || errorMsg.includes("rate limit") || errorMsg.includes("429 too many requests");
 
-      if (isRateLimit) {
-        console.log("⚠️ Rate limit or quota error detected. Attempting to rotate to next key...");
+      if (isRateLimit && currentKey) {
+        console.log("⚠️ Rate limit or quota error detected. Marking key as disabled...");
+        keyRotationService.markKeyAsRateLimited(currentKey, 60); // disable for 60s
       } else {
         console.log("⚠️ Non-quota error detected. We will still retry anyway just to be safe.");
       }

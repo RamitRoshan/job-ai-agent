@@ -7,8 +7,15 @@ import authRoutes from './routes/authRoutes.js';
 import jobRoutes from './routes/jobRoutes.js';
 import agentRoutes from './routes/agentRoutes.js';
 
-// Load environment variables
-dotenv.config();
+
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load environment variables from the root backend directory
+dotenv.config({ path: path.join(__dirname, '../.env') });
 
 const app = express();
 

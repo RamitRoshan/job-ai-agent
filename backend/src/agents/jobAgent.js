@@ -71,10 +71,17 @@ Return ONLY raw JSON. No markdown backticks (like \`\`\`json), no extra explanat
       console.error(`Attempt ${attempts + 1} failed using key rotation:`, error.message);
       lastError = error;
 
-      // Abort immediately for permanent model/configuration errors (e.g. 404, not found)
-      if (error.message.includes("404") || error.message.toLowerCase().includes("not found") || error.message.toLowerCase().includes("model")) {
-        console.error(`❌ Permanent model/route error encountered. Aborting retries.`);
-        throw error;
+      // First check if this is a rate limit / quota error
+      const errorMsg = error.message && typeof error.message === 'string' ? error.message.toLowerCase() : String(error.message || "").toLowerCase();
+      
+      console.log("🔥 ERROR HANDLING BLOCK REACHED. Error Message:", errorMsg.substring(0, 50) + "...");
+
+      const isRateLimit = errorMsg.includes("429") || errorMsg.includes("quota") || errorMsg.includes("rate limit") || errorMsg.includes("429 too many requests");
+
+      if (isRateLimit) {
+        console.log("⚠️ Rate limit or quota error detected. Attempting to rotate to next key...");
+      } else {
+        console.log("⚠️ Non-quota error detected. We will still retry anyway just to be safe.");
       }
 
       attempts++;

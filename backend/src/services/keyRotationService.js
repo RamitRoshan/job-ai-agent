@@ -110,22 +110,34 @@ class KeyRotationService {
       throw new AllKeysExhaustedError("No keys configured.");
     }
 
+    const now = Date.now();
+    const RPM_LIMIT = 13; // Safe threshold before the 15 RPM limit
+
     let attempts = 0;
     while (attempts < this.keys.length) {
       const keyObj = this.keys[this.currentIndex];
       
-      // Move index to next for next call (Round Robin)
-      this.currentIndex = (this.currentIndex + 1) % this.keys.length;
+      // Initialize timestamp array if it doesn't exist
+      if (!keyObj.requestTimestamps) {
+        keyObj.requestTimestamps = [];
+      }
+      
+      // Clean up old timestamps (keep only requests from the last 60 seconds)
+      keyObj.requestTimestamps = keyObj.requestTimestamps.filter(t => now - t < 60000);
 
-      if (keyObj.isHealthy) {
+      // Check if key is healthy AND has not exceeded our safe RPM limit
+      if (keyObj.isHealthy && keyObj.requestTimestamps.length < RPM_LIMIT) {
+        keyObj.requestTimestamps.push(now); // Record this request
         monitoringService.recordKeyUsage(keyObj.key);
         return keyObj.key;
       }
       
+      // If key is unhealthy or reached 13 requests, move to the next key
+      this.currentIndex = (this.currentIndex + 1) % this.keys.length;
       attempts++;
     }
 
-    throw new AllKeysExhaustedError("All Gemini API keys are currently rate-limited or disabled.");
+    throw new AllKeysExhaustedError("All Gemini API keys are currently rate-limited, disabled, or have reached their per-minute limits.");
   }
 
   // Retry-After Based Cooldown & Circuit Breaker Pattern

@@ -103,6 +103,26 @@ const fallbackJobs = [
     description: 'Build native iOS and Android applications using React Native. Experience with Redux and native bridge is a plus.',
     link: 'https://mobify.agency/careers/react-native',
     tags: ['React Native', 'Mobile', 'iOS', 'Android', 'Remote'],
+  },
+  {
+    title: 'Backend Developer',
+    company: 'Hyderabad Tech Solutions',
+    location: 'Hyderabad',
+    salary: '14 LPA',
+    experience: '3-6 years',
+    description: 'Looking for a solid backend developer experienced with Node.js, Express, and microservices.',
+    link: 'https://hyderabadtech.com/jobs/backend-dev',
+    tags: ['Backend', 'Node.js', 'Express', 'Microservices'],
+  },
+  {
+    title: 'Frontend Developer',
+    company: 'Noida Web Wizards',
+    location: 'Noida',
+    salary: '10 LPA',
+    experience: '2-5 years',
+    description: 'Join our creative team to build stunning UIs in Noida using React and Vue.js.',
+    link: 'https://noidawebwizards.com/careers/frontend',
+    tags: ['Frontend', 'React', 'Vue', 'UI'],
   }
 ];
 

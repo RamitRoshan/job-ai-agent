@@ -1,6 +1,8 @@
 import { createReactAgent } from '@langchain/langgraph/prebuilt';
+import { HumanMessage, AIMessage, SystemMessage, ToolMessage } from '@langchain/core/messages';
 import { jobSearchTool } from '../tools/jobSearchTool.js';
-import { getPortkeyLLM } from '../config/llm.js';
+// import { getPortkeyLLM } from '../config/llm.js';
+import { getGroqLLM } from '../config/llm.js';
 import { keyRotationService, AllKeysExhaustedError } from '../services/keyRotationService.js';
 
 export const runJobAgent = async (userQuery, chatHistory = []) => {
@@ -32,17 +34,18 @@ Return ONLY raw JSON. No markdown backticks (like \`\`\`json), no extra explanat
 
   if (chatHistory && chatHistory.length > 0) {
     chatHistory.forEach(msg => {
-      messages.push({
-        role: msg.sender === 'user' ? 'user' : 'assistant',
-        content: msg.text
-      });
+      if (msg.sender === 'user') {
+        messages.push(new HumanMessage(msg.text));
+      } else {
+        messages.push(new AIMessage(msg.text));
+      }
     });
   }
 
   // Push the latest user query
-  messages.push({ role: 'user', content: userQuery });
+  messages.push(new HumanMessage(userQuery));
 
-  // 3. Execute the ReAct agent graph with Portkey LLM, rotation and retry mechanism
+  // 3. Execute the tool calling loop with Groq LLM, rotation and retry mechanism
   let attempts = 0;
   // Increase maxAttempts to try all keys before failing
   const maxAttempts = 5; 
@@ -52,24 +55,47 @@ Return ONLY raw JSON. No markdown backticks (like \`\`\`json), no extra explanat
     let currentKey = null;
     try {
       currentKey = await keyRotationService.getNextKey();
-      const llm = getPortkeyLLM(currentKey);
+      const llm = getGroqLLM(currentKey);
 
-      const agent = createReactAgent({
-        llm,
-        tools,
-        stateModifier: systemPrompt,
-      });
+      // Bind tools to the LLM
+      const llmWithTools = llm.bindTools(tools);
 
-      const result = await agent.invoke({
-        messages: messages,
-      }, {
-        recursionLimit: 5
-      });
+      // Prepare the message array
+      const conversation = [
+        new SystemMessage(systemPrompt),
+        ...messages
+      ];
 
-      const finalMessage = result.messages[result.messages.length - 1];
-      return finalMessage.content;
+      // Step 1: Let the LLM decide if it needs to call a tool
+      const aiMsg = await llmWithTools.invoke(conversation);
+
+      if (aiMsg.tool_calls && aiMsg.tool_calls.length > 0) {
+        // Step 2: Execute the tool manually
+        const toolMessages = [];
+        for (const toolCall of aiMsg.tool_calls) {
+          const toolResult = await jobSearchTool.invoke(toolCall.args);
+          // In raw LangChain, tool results are just passed as ToolMessages
+          toolMessages.push(new ToolMessage({
+            content: toolResult,
+            tool_call_id: toolCall.id,
+            name: toolCall.name
+          }));
+        }
+
+        // Step 3: Send the tool results back to the LLM to format the final JSON
+        const finalResponse = await llm.invoke([
+          ...conversation,
+          aiMsg,
+          ...toolMessages
+        ]);
+        
+        return finalResponse.content;
+      } else {
+        // LLM answered directly
+        return aiMsg.content;
+      }
     } catch (error) {
-      console.error(`Attempt ${attempts + 1} failed:`, error.message);
+      console.error(`Attempt ${attempts + 1} failed with error:`, error);
       lastError = error;
 
       if (error instanceof AllKeysExhaustedError) {

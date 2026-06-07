@@ -1,5 +1,6 @@
 import { monitoringService } from './monitoringService.js';
-import { getPortkeyLLM } from '../config/llm.js';
+// import { getPortkeyLLM } from '../config/llm.js';
+import { getGroqLLM } from '../config/llm.js';
 
 export class AllKeysExhaustedError extends Error {
   constructor(message) {
@@ -22,46 +23,57 @@ class KeyRotationService {
     const rawKeys = [];
     let i = 1;
     while (true) {
-      const key = process.env[`GEMINI_KEY_${i}`];
+      // --- GEMINI LOGIC (Commented out) ---
+      // const key = process.env[`GEMINI_KEY_${i}`];
+      // --- GROQ LOGIC ---
+      const key = process.env[`GROQ_KEY_${i}`];
+
       if (!key) break;
       rawKeys.push(key);
       i++;
     }
 
-    if (rawKeys.length === 0 && process.env.GEMINI_API_KEY) {
-      rawKeys.push(process.env.GEMINI_API_KEY);
+    // if (rawKeys.length === 0 && process.env.GEMINI_API_KEY) {
+    //   rawKeys.push(process.env.GEMINI_API_KEY);
+    // }
+    if (rawKeys.length === 0 && process.env.GROQ_API_KEY) {
+      rawKeys.push(process.env.GROQ_API_KEY);
     }
 
     if (rawKeys.length === 0) {
-      console.error("❌ No Gemini API keys found in environment variables.");
+      console.error("❌ No Groq API keys found in environment variables.");
       this.isInitialized = true;
       return;
     }
 
-    console.log(`\n🔍 Performing Startup Health Check on ${rawKeys.length} Gemini API Keys...`);
+    console.log(`\n🔍 Performing Startup Health Check on ${rawKeys.length} Groq API Keys...`);
     this.keys = [];
 
     for (let index = 0; index < rawKeys.length; index++) {
       const apiKey = rawKeys[index];
       const maskedKey = apiKey.length > 8 ? `${apiKey.substring(0, 6)}...` : '***';
       let isHealthy = false;
-      
+
       const startTime = Date.now();
       let isTimeout = false;
       try {
         console.log(`\n⏳ [Key ${index + 1}] Starting request for key ${maskedKey}...`);
-        const llm = getPortkeyLLM(apiKey);
-        
+
+        // --- GEMINI LOGIC (Commented out) ---
+        // const llm = getPortkeyLLM(apiKey);
+        // --- GROQ LOGIC ---
+        const llm = getGroqLLM(apiKey);
+
         // AbortController to prevent hanging forever
         const controller = new AbortController();
         const timeoutId = setTimeout(() => {
           isTimeout = true;
           controller.abort();
         }, 30000); // Increased timeout to 30 seconds
-        
+
         await llm.invoke("respond with exactly one word: 'ok'", { signal: controller.signal });
         clearTimeout(timeoutId);
-        
+
         const timeTaken = Date.now() - startTime;
         isHealthy = true;
         console.log(`✅ [Key ${index + 1}] Request ended successfully. Time taken: ${timeTaken}ms`);
@@ -70,7 +82,7 @@ class KeyRotationService {
         console.log(`❌ [Key ${index + 1}] Request failed. Time taken: ${timeTaken}ms`);
         console.log(`⚠️ Full Error for Key ${index + 1}:`, err);
         if (err.response && err.response.data) {
-          console.log(`⚠️ Actual Gemini/Portkey Response Data:`, JSON.stringify(err.response.data, null, 2));
+          console.log(`⚠️ Actual API Response Data:`, JSON.stringify(err.response.data, null, 2));
         }
       }
 
@@ -103,7 +115,7 @@ class KeyRotationService {
 
   async getNextKey() {
     if (!this.isInitialized) await this.initialize();
-    
+
     this._refreshKeyStatus();
 
     if (this.keys.length === 0) {
@@ -111,17 +123,18 @@ class KeyRotationService {
     }
 
     const now = Date.now();
-    const RPM_LIMIT = 13; // Safe threshold before the 15 RPM limit
+    // const RPM_LIMIT = 13; // Gemini safe limit
+    const RPM_LIMIT = 1; // Groq safe limit (up to 30)
 
     let attempts = 0;
     while (attempts < this.keys.length) {
       const keyObj = this.keys[this.currentIndex];
-      
+
       // Initialize timestamp array if it doesn't exist
       if (!keyObj.requestTimestamps) {
         keyObj.requestTimestamps = [];
       }
-      
+
       // Clean up old timestamps (keep only requests from the last 60 seconds)
       keyObj.requestTimestamps = keyObj.requestTimestamps.filter(t => now - t < 60000);
 
@@ -131,13 +144,13 @@ class KeyRotationService {
         monitoringService.recordKeyUsage(keyObj.key);
         return keyObj.key;
       }
-      
+
       // If key is unhealthy or reached 13 requests, move to the next key
       this.currentIndex = (this.currentIndex + 1) % this.keys.length;
       attempts++;
     }
 
-    throw new AllKeysExhaustedError("All Gemini API keys are currently rate-limited, disabled, or have reached their per-minute limits.");
+    throw new AllKeysExhaustedError("All API keys are currently rate-limited, disabled, or have reached their per-minute limits.");
   }
 
   // Retry-After Based Cooldown & Circuit Breaker Pattern
@@ -146,16 +159,16 @@ class KeyRotationService {
     if (keyObj) {
       keyObj.consecutiveFailures += 1;
       keyObj.isHealthy = false;
-      
+
       // Circuit breaker logic: exponential backoff if it keeps failing immediately after recovery
       let cooldown = retryAfterSeconds * 1000;
       if (keyObj.consecutiveFailures > 1) {
-         cooldown = cooldown * keyObj.consecutiveFailures; // e.g. 60s -> 120s -> 180s
+        cooldown = cooldown * keyObj.consecutiveFailures; // e.g. 60s -> 120s -> 180s
       }
 
       keyObj.disabledUntil = Date.now() + cooldown;
       monitoringService.recordQuotaError();
-      console.warn(`🛑 Circuit Breaker: Key [${apiKey.substring(0, 6)}...] disabled for ${cooldown/1000}s due to quota/rate limit.`);
+      console.warn(`🛑 Circuit Breaker: Key [${apiKey.substring(0, 6)}...] disabled for ${cooldown / 1000}s due to quota/rate limit.`);
     }
   }
 }

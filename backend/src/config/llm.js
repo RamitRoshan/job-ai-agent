@@ -35,3 +35,14 @@ export const getGroqLLM = (groqApiKey) => {
     },
   });
 };
+
+// --- OPENAI LOGIC ---
+export const getOpenAILLM = (openAiApiKey) => {
+  return new ChatOpenAI({
+    model: "gpt-4o-mini", 
+    modelName: "gpt-4o-mini",
+    temperature: 0.1,
+    apiKey: openAiApiKey,
+    maxRetries: 0, // Disable retries to rely on our custom rotation
+  });
+};

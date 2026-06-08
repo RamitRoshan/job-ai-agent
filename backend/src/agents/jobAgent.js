@@ -2,7 +2,7 @@ import { createReactAgent } from '@langchain/langgraph/prebuilt';
 import { HumanMessage, AIMessage, SystemMessage, ToolMessage } from '@langchain/core/messages';
 import { jobSearchTool } from '../tools/jobSearchTool.js';
 // import { getPortkeyLLM } from '../config/llm.js';
-import { getGroqLLM } from '../config/llm.js';
+import { getGroqLLM, getOpenAILLM } from '../config/llm.js';
 import { keyRotationService, AllKeysExhaustedError } from '../services/keyRotationService.js';
 
 export const runJobAgent = async (userQuery, chatHistory = []) => {
@@ -54,8 +54,10 @@ Return ONLY raw JSON. No markdown backticks (like \`\`\`json), no extra explanat
   while (attempts < maxAttempts) {
     let currentKey = null;
     try {
-      currentKey = await keyRotationService.getNextKey();
-      const llm = getGroqLLM(currentKey);
+      const keyInfo = await keyRotationService.getNextKey();
+      currentKey = keyInfo.key;
+      const provider = keyInfo.provider;
+      const llm = provider === 'groq' ? getGroqLLM(currentKey) : getOpenAILLM(currentKey);
 
       // Bind tools to the LLM
       const llmWithTools = llm.bindTools(tools);
